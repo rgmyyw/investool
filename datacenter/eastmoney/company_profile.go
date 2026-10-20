@@ -303,9 +303,6 @@ func (e EastMoney) QueryCompanyProfile(ctx context.Context, secuCode string) (Co
 	profile.Industry = resp.Jbzl[0].Industry
 	profile.Profile = resp.Jbzl[0].OrgProfile
 	profile.MainBusiness = resp.Jbzl[0].BusinessScope
-	profile.Secucode = resp.Result.Jibenziliao.Secucode
-	profile.Name = resp.Result.Jibenziliao.Companyname
-	profile.Industry = resp.Result.Jibenziliao.Industry
 	profile.Concept = ""
 	profile.Keywords = []string{}
 
