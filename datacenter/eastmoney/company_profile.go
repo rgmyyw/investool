@@ -264,79 +264,103 @@ func (c CompanyProfile) KeywordsString() string {
 }
 
 // QueryCompanyProfile 获取公司信息
+// 原 emh5 APP 接口（GetJiBenZiLiao/GetCaoPanBiDuPart2Get）已失效（空响应），
+// 切换为东财 PC F10 页面接口（emweb securities）：
+//   - CompanySurvey/PageAjax   基本资料/公司简介/经营范围
+//   - OperationsRequired/PageAjax  核心题材关键词/所属板块
+//   - BusinessAnalysis/PageAjax    主营构成
 func (e EastMoney) QueryCompanyProfile(ctx context.Context, secuCode string) (CompanyProfile, error) {
 	profile := CompanyProfile{}
-	fc := e.GetFC(secuCode)
+	s := strings.Split(strings.ToUpper(secuCode), ".")
+	if len(s) != 2 {
+		return profile, fmt.Errorf("invalid secuCode %s", secuCode)
+	}
+	f10code := s[1] + s[0] // 600519.SH -> SH600519
 
 	// 基本资料
-	apiurl := "https://emh5.eastmoney.com/api/GongSiGaiKuang/GetJiBenZiLiao"
-	reqData := map[string]interface{}{
-		"fc": fc,
-	}
-	logging.Debug(ctx, "EastMoney QueryCompanyProfile "+apiurl+" begin", zap.Any("reqData", reqData))
+	apiurl := "https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/PageAjax?code=" + f10code
+	logging.Debug(ctx, "EastMoney QueryCompanyProfile "+apiurl+" begin")
 	beginTime := time.Now()
-	req, err := goutils.NewHTTPJSONReq(ctx, apiurl, reqData)
-	if err != nil {
+	resp := struct {
+		Jbzl []struct {
+			Secucode       string `json:"SECUCODE"`
+			Name           string `json:"SECURITY_NAME_ABBR"`
+			Industry       string `json:"EM2016"`
+			OrgProfile     string `json:"ORG_PROFILE"`
+			BusinessScope  string `json:"BUSINESS_SCOPE"`
+		} `json:"jbzl"`
+	}{}
+	if err := goutils.HTTPGET(ctx, e.HTTPClient, apiurl, nil, &resp); err != nil {
 		return profile, err
 	}
-	resp := RespJBZL{}
-	err = goutils.HTTPPOST(ctx, e.HTTPClient, req, &resp)
 	latency := time.Now().Sub(beginTime).Milliseconds()
-	logging.Debug(
-		ctx,
-		"EastMoney QueryCompanyProfile "+apiurl+" end",
-		zap.Int64("latency(ms)", latency),
-		// zap.Any("resp", resp),
-	)
-	if err != nil {
-		return profile, err
+	logging.Debug(ctx, "EastMoney QueryCompanyProfile "+apiurl+" end", zap.Int64("latency(ms)", latency))
+	if len(resp.Jbzl) == 0 {
+		return profile, fmt.Errorf("%s no company profile data", secuCode)
 	}
-	if resp.Status != 0 {
-		return profile, fmt.Errorf("%s %#v", secuCode, resp.Message)
-	}
+	profile.Secucode = resp.Jbzl[0].Secucode
+	profile.Name = resp.Jbzl[0].Name
+	profile.Industry = resp.Jbzl[0].Industry
+	profile.Profile = resp.Jbzl[0].OrgProfile
+	profile.MainBusiness = resp.Jbzl[0].BusinessScope
 	profile.Secucode = resp.Result.Jibenziliao.Secucode
 	profile.Name = resp.Result.Jibenziliao.Companyname
 	profile.Industry = resp.Result.Jibenziliao.Industry
-	profile.Concept = resp.Result.Jibenziliao.Block
-	profile.Profile = resp.Result.Jibenziliao.Comprofile
-	profile.MainBusiness = resp.Result.Jibenziliao.Mainbusiness
+	profile.Concept = ""
+	profile.Keywords = []string{}
 
-	// 操盘必读
-	apiurl = "https://emh5.eastmoney.com/api/CaoPanBiDu/GetCaoPanBiDuPart2Get"
-	params := map[string]string{
-		"fc": fc,
-	}
-	logging.Debug(ctx, "EastMoney QueryCompanyProfile "+apiurl+" begin", zap.Any("params", params))
+	// 核心题材关键词 && 所属板块
+	apiurl = "https://emweb.securities.eastmoney.com/PC_HSF10/OperationsRequired/PageAjax?code=" + f10code
+	logging.Debug(ctx, "EastMoney QueryCompanyProfile "+apiurl+" begin")
 	beginTime = time.Now()
-	apiurl, err = goutils.NewHTTPGetURLWithQueryString(ctx, apiurl, params)
-	if err != nil {
+	resp1 := struct {
+		Hxtc []struct {
+			Keyword string `json:"KEYWORD"`
+		} `json:"hxtc"`
+		Ssbk []struct {
+			BoardName string `json:"BOARD_NAME"`
+		} `json:"ssbk"`
+	}{}
+	if err := goutils.HTTPGET(ctx, e.HTTPClient, apiurl, nil, &resp1); err != nil {
 		return profile, err
 	}
-	resp1 := RespCPBD{}
-	err = goutils.HTTPGET(ctx, e.HTTPClient, apiurl, nil, &resp1)
 	latency = time.Now().Sub(beginTime).Milliseconds()
-	logging.Debug(
-		ctx,
-		"EastMoney QueryCompanyProfile "+apiurl+" end",
-		zap.Int64("latency(ms)", latency),
-		// zap.Any("resp", resp1),
-	)
-	if err != nil {
-		return profile, err
-	}
-	if resp1.Status != 0 {
-		return profile, fmt.Errorf("%s %#v", secuCode, resp1.Message)
-	}
-	for _, i := range resp1.Result.Ticaixiangqinglist {
+	logging.Debug(ctx, "EastMoney QueryCompanyProfile "+apiurl+" end", zap.Int64("latency(ms)", latency))
+	for _, i := range resp1.Hxtc {
 		profile.Keywords = append(profile.Keywords, i.Keyword)
 	}
-	for _, i := range resp1.Result.Zhuyinggouchenglist {
+	boards := []string{}
+	for _, b := range resp1.Ssbk {
+		if b.BoardName != "" {
+			boards = append(boards, b.BoardName)
+		}
+	}
+	profile.Concept = strings.Join(boards, ";")
+
+	// 主营构成
+	apiurl = "https://emweb.securities.eastmoney.com/PC_HSF10/BusinessAnalysis/PageAjax?code=" + f10code
+	logging.Debug(ctx, "EastMoney QueryCompanyProfile "+apiurl+" begin")
+	beginTime = time.Now()
+	resp2 := struct {
+		Zygcfx []struct {
+			ReportDate          string  `json:"REPORT_DATE"`
+			MainopType          int     `json:"MAINOP_TYPE"`
+			ItemName            string  `json:"ITEM_NAME"`
+			MainBusinessIncome  float64 `json:"MAIN_BUSINESS_INCOME"`
+			MbiRatio            float64 `json:"MBI_RATIO"`
+		} `json:"zygcfx"`
+	}{}
+	if err := goutils.HTTPGET(ctx, e.HTTPClient, apiurl, nil, &resp2); err != nil {
+		return profile, err
+	}
+	latency = time.Now().Sub(beginTime).Milliseconds()
+	logging.Debug(ctx, "EastMoney QueryCompanyProfile "+apiurl+" end", zap.Int64("latency(ms)", latency))
+	for _, i := range resp2.Zygcfx {
 		m := MainForm{
-			Type:                 i.Reporttype,
-			MainForm:             i.Mainform,
-			MainIncome:           i.Mainincome,
-			MainIncomeRatio:      i.Mainincomeratio,
-			MainIncomeRatioChart: i.Mainincomeratiochart,
+			Type:            fmt.Sprint(i.MainopType),
+			MainForm:        i.ItemName,
+			MainIncome:      fmt.Sprintf("%.2f", i.MainBusinessIncome),
+			MainIncomeRatio: fmt.Sprintf("%.2f", i.MbiRatio),
 		}
 		profile.MainForms = append(profile.MainForms, m)
 	}
