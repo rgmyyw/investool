@@ -1,0 +1,26 @@
+services:
+  investool:
+    build: .
+    image: investool:latest
+    container_name: investool
+    restart: always
+    ports:
+      - "4869:4869"
+    volumes:
+      - ./data:/srv/investool/data
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 1
+    environment:
+      - TZ=Asia/Shanghai
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4869/x/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s

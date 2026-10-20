@@ -14,7 +14,12 @@ import (
 
 // SyncFundManagers 同步基金经理
 func SyncFundManagers() {
-	if !goutils.IsTradingDay() {
+	syncFundManagers(false)
+}
+
+// syncFundManagers 同步基金经理，force 为 true 时跳过交易日检查（启动引导用）
+func syncFundManagers(force bool) {
+	if !force && !goutils.IsTradingDay() {
 		return
 	}
 	ctx := context.Background()

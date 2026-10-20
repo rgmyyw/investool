@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -84,16 +85,55 @@ func (p RespHistoricalStockPrice) HistoricalVolatility(ctx context.Context, peri
 	return volatility, nil
 }
 
-// QueryHistoricalStockPrice 获取历史股价，最新数据在最后，有一天的延迟
+// QueryHistoricalStockPrice 获取历史股价（前复权），最新数据在最后，有一天的延迟
+// 原数据源亿牛网 eniu.com 接口已停止服务（恒定 500），切换为东方财富历史 K 线接口
 func (e Eniu) QueryHistoricalStockPrice(ctx context.Context, secuCode string) (RespHistoricalStockPrice, error) {
-	apiurl := fmt.Sprintf("https://eniu.com/chart/pricea/%s/t/all", e.GetPathCode(ctx, secuCode))
-	logging.Debug(ctx, "EastMoney QueryOrgRating "+apiurl+" begin")
+	s := strings.Split(secuCode, ".")
+	if len(s) != 2 {
+		return RespHistoricalStockPrice{}, errors.New("invalid secuCode " + secuCode)
+	}
+	// 东财 secid 市场前缀：沪市 1，深市 0；北交所 0 不在本工具标的范围内
+	market := "1"
+	if s[1] == "SZ" {
+		market = "0"
+	}
+	apiurl := fmt.Sprintf(
+		"https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=%s.%s&fields1=f1,f2,f3&fields2=f51,f53&klt=101&fqt=1&beg=0&end=20500101&lmt=1000000",
+		market, s[0],
+	)
+	logging.Debug(ctx, "QueryHistoricalStockPrice "+apiurl+" begin")
 	beginTime := time.Now()
-	resp := RespHistoricalStockPrice{}
+	resp := struct {
+		Data struct {
+			Klines []string `json:"klines"`
+		} `json:"data"`
+	}{}
 	err := goutils.HTTPGET(ctx, e.HTTPClient, apiurl, nil, &resp)
 	latency := time.Now().Sub(beginTime).Milliseconds()
-	logging.Debug(ctx, "EastMoney QueryOrgRating "+apiurl+" end", zap.Int64("latency(ms)", latency), zap.Any("resp", resp))
-	return resp, err
+	logging.Debug(ctx, "QueryHistoricalStockPrice "+apiurl+" end", zap.Int64("latency(ms)", latency))
+
+	if err != nil {
+		return RespHistoricalStockPrice{}, err
+	}
+	// klines 元素形如 "2001-08-27,1740.75"（日期,前复权收盘价）
+	// 前复权下早期年份可能因累积分红调整为非正数，跳过以免波动率对数收益计算出现 NaN
+	result := RespHistoricalStockPrice{}
+	for _, k := range resp.Data.Klines {
+		parts := strings.Split(k, ",")
+		if len(parts) < 2 {
+			continue
+		}
+		price, err := strconv.ParseFloat(parts[1], 64)
+		if err != nil || price <= 0 {
+			continue
+		}
+		result.Date = append(result.Date, parts[0])
+		result.Price = append(result.Price, price)
+	}
+	if len(result.Date) == 0 {
+		return result, errors.New("no kline data for " + secuCode)
+	}
+	return result, nil
 }
 
 // GetPathCode 返回接口 url path 中的股票代码

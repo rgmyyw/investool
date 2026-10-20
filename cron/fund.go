@@ -17,7 +17,12 @@ import (
 
 // SyncFund 同步基金数据
 func SyncFund() {
-	if !goutils.IsTradingDay() {
+	syncFund(false)
+}
+
+// syncFund 同步基金数据，force 为 true 时跳过交易日检查（启动引导用）
+func syncFund(force bool) {
+	if !force && !goutils.IsTradingDay() {
 		return
 	}
 	ctx := context.Background()

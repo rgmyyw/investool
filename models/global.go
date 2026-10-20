@@ -28,17 +28,17 @@ var (
 	// SyncFundTime 基金数据同步时间
 	SyncFundTime = time.Now()
 	// RawFundAllListFilename api返回的原始结果
-	RawFundAllListFilename = "./eastmoney_funds_list.json"
+	RawFundAllListFilename = "./data/eastmoney_funds_list.json"
 	// FundAllListFilename 基金列表数据文件
-	FundAllListFilename = "./fund_all_list.json"
+	FundAllListFilename = "./data/fund_all_list.json"
 	// Fund4433ListFilename 4433基金列表数据文件
-	Fund4433ListFilename = "./fund_4433_list.json"
+	Fund4433ListFilename = "./data/fund_4433_list.json"
 	// IndustryListFilename 行业列表数据文件
-	IndustryListFilename = "./industry_list.json"
+	IndustryListFilename = "./data/industry_list.json"
 	// FundTypeListFilename 基金类型数据文件
-	FundTypeListFilename = "./fund_type_list.json"
+	FundTypeListFilename = "./data/fund_type_list.json"
 	// FundManagersFilename 基金经理数据文件
-	FundManagersFilename = "./fund_managers.json"
+	FundManagersFilename = "./data/fund_managers.json"
 	// AAACompanyBondSyl AAA公司债当期收益率
 	AAACompanyBondSyl = -1.0 // datacenter.ChinaBond.QueryAAACompanyBondSyl(context.Background())
 )

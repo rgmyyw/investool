@@ -14,7 +14,12 @@ import (
 
 // SyncIndustryList 同步行业列表
 func SyncIndustryList() {
-	if !goutils.IsTradingDay() {
+	syncIndustryList(false)
+}
+
+// syncIndustryList 同步行业列表，force 为 true 时跳过交易日检查（启动引导用）
+func syncIndustryList(force bool) {
+	if !force && !goutils.IsTradingDay() {
 		return
 	}
 	ctx := context.Background()
