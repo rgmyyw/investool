@@ -4,6 +4,7 @@ package cmds
 
 import (
 	"github.com/axiaoxin-com/investool/cron"
+	"github.com/axiaoxin-com/investool/models"
 	"github.com/axiaoxin-com/investool/routes"
 	"github.com/axiaoxin-com/investool/routes/response"
 	"github.com/axiaoxin-com/investool/webserver"
