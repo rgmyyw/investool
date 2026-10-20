@@ -162,3 +162,38 @@ h1, h2, h3, h4 { color: var(--it-text); letter-spacing: -.01em; }
 .modal { border-radius: var(--it-radius); overflow: hidden; }
 a { color: var(--it-acc); }
 a:hover { color: var(--it-acc-strong); }
+
+/* ============ 对比度修复与字体优化 ============ */
+/* 页脚标题与链接:浅背景上不可见的白色/浅灰文字 */
+.page-footer h5.white-text { color: var(--it-text) !important; }
+.grey-text.text-lighten-3 { color: var(--it-muted) !important; }
+.grey-text.text-lighten-4 { color: var(--it-faint) !important; }
+
+/* 侧栏头部(蓝渐变)的白字保留,其余 white-text 在浅色容器内兜底 */
+.card .white-text, .card-panel .white-text, .modal .white-text { color: var(--it-text) !important; }
+
+/* 标题收敛(MSR 风格克制字号) */
+h1 { font-size: 24px !important; font-weight: 700; }
+h2 { font-size: 20px !important; font-weight: 700; }
+h3 { font-size: 17px !important; font-weight: 600; }
+h4 { font-size: 15px !important; font-weight: 600; }
+p { color: var(--it-text-2, #334155); line-height: 1.65; }
+
+/* 表格:紧凑字号 + 数字对齐 */
+table { font-size: 13px; }
+table td, table th { padding: 8px 10px !important; }
+table td { font-variant-numeric: tabular-nums; }
+
+/* 正文可读性 */
+body { font-size: 14px; line-height: 1.6; }
+strong, b { font-weight: 600; }
+.input-field label { color: var(--it-muted); font-size: 13px; }
+.col .card .card-content { padding: 16px 20px; }
+
+/* 分页与选择器文字 */
+.pagination li a { color: var(--it-muted); }
+.select-wrapper input.select-dropdown { color: var(--it-text); }
+.dropdown-content li > a, .dropdown-content li > span { color: var(--it-text) !important; }
+
+/* 检测结果数字/代码块区 */
+.code, pre { background: #f6f9fc; border: 1px solid var(--it-border); border-radius: 8px; color: var(--it-text); }
