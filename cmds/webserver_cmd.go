@@ -53,9 +53,12 @@ func ActionWebserver() func(c *cli.Context) error {
 		configFile := c.String("config")
 		webserver.InitWithConfigFile(configFile)
 
-		// 数据文件缺失时（首次运行）先强制同步一次并加载全局变量
-		cron.EnsureDataFiles()
-		models.InitGlobalVars()
+		// 数据文件缺失时（首次运行）后台强制同步一次并加载全局变量，
+		// 不阻塞 web 服务启动（全量基金同步耗时较长）
+		go func() {
+			cron.EnsureDataFiles()
+			models.InitGlobalVars()
+		}()
 
 		// 启动定时任务
 		cron.RunCronJobs(true)

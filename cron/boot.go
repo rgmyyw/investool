@@ -10,34 +10,34 @@ import (
 	"github.com/axiaoxin-com/logging"
 )
 
+func fileExists(f string) bool {
+	_, err := os.Stat(f)
+	return err == nil
+}
+
 // EnsureDataFiles 检查数据文件是否齐全，缺失时立即强制同步一次
 // 上游因部署机内存不足改为"json 由外部同步"，本部署内存充足，
-// 由程序自己在启动时和定时任务中维护这些文件
+// 由程序自己在启动时和定时任务中维护这些文件；
+// 按文件缺失情况精确调度对应同步任务，避免重复全量拉取
 func EnsureDataFiles() {
-	files := []string{
-		models.IndustryListFilename,
-		models.FundAllListFilename,
-		models.Fund4433ListFilename,
-		models.FundTypeListFilename,
-		models.FundManagersFilename,
-	}
-	missing := false
-	for _, f := range files {
-		if _, err := os.Stat(f); err != nil {
-			missing = true
-			break
-		}
-	}
-	if !missing {
-		return
-	}
-
 	if err := os.MkdirAll(filepath.Dir(models.IndustryListFilename), 0755); err != nil {
 		logging.Error(nil, "EnsureDataFiles mkdir error:"+err.Error())
 		return
 	}
-	logging.Info(nil, "data files missing, running initial sync...")
-	syncIndustryList(true)
-	syncFundManagers(true)
-	syncFund(true)
+
+	if !fileExists(models.IndustryListFilename) {
+		logging.Info(nil, "industry_list.json missing, syncing...")
+		syncIndustryList(true)
+	}
+	if !fileExists(models.FundManagersFilename) {
+		logging.Info(nil, "fund_managers.json missing, syncing...")
+		syncFundManagers(true)
+	}
+	if !fileExists(models.FundAllListFilename) ||
+		!fileExists(models.FundTypeListFilename) ||
+		!fileExists(models.Fund4433ListFilename) {
+		logging.Info(nil, "fund data files missing, syncing...")
+		syncFund(true)
+	}
+	logging.Info(nil, "EnsureDataFiles done")
 }
