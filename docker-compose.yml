@@ -19,7 +19,7 @@ services:
         max-size: "10m"
         max-file: "3"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--user", "admin", "--password", "admin", "-O", "/dev/null", "http://127.0.0.1:4869/x/ping"]
+      test: ["CMD", "wget", "-q", "--header", "Authorization: Basic YWRtaW46YWRtaW4=", "-O", "/dev/null", "http://127.0.0.1:4869/x/ping"]
       interval: 30s
       timeout: 5s
       retries: 3
