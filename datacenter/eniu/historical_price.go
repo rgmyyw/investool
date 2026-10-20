@@ -103,8 +103,10 @@ func (e Eniu) QueryHistoricalStockPrice(ctx context.Context, secuCode string) (R
 	resp := struct {
 		Code int `json:"code"`
 		Data map[string]struct {
-			QfqDay [][]string `json:"qfqday"`
-			Day    [][]string `json:"day"`
+			// 除权除息日的行末尾会多一个分红信息对象（第 7 元素），
+			// 因此元素类型用 interface{} 而非 string
+			QfqDay [][]interface{} `json:"qfqday"`
+			Day    [][]interface{} `json:"day"`
 		} `json:"data"`
 	}{}
 	err := goutils.HTTPGET(ctx, e.HTTPClient, apiurl, nil, &resp)
@@ -134,11 +136,16 @@ func (e Eniu) QueryHistoricalStockPrice(ctx context.Context, secuCode string) (R
 		if len(k) < 3 {
 			continue
 		}
-		price, err := strconv.ParseFloat(k[2], 64)
+		date, ok1 := k[0].(string)
+		priceStr, ok2 := k[2].(string)
+		if !ok1 || !ok2 {
+			continue
+		}
+		price, err := strconv.ParseFloat(priceStr, 64)
 		if err != nil || price <= 0 {
 			continue
 		}
-		result.Date = append(result.Date, k[0])
+		result.Date = append(result.Date, date)
 		result.Price = append(result.Price, price)
 	}
 	if len(result.Date) == 0 {
