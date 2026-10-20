@@ -35,12 +35,9 @@ func RunCronJobs(async bool) {
 	logging.Debugf(nil, "cron timezone:%v", timezone)
 	sched := gocron.NewScheduler(timezone)
 
-	// 同步基金净值列表和4433列表
-	sched.Cron(viper.GetString("app.cronexp.sync_fund")).Do(SyncFund)
-	// 同步东方财富行业列表
-	sched.Cron(viper.GetString("app.cronexp.sync_industry_list")).Do(SyncIndustryList)
-	// 同步基金经理列表
-	sched.Cron(viper.GetString("app.cronexp.sync_fund_managers")).Do(SyncFundManagers)
+	// 全量同步任务（SyncFund/SyncFundManagers/SyncIndustryList）不在本进程中调度：
+	// SearchFunds 全量 2.5 万基金峰值内存 >1G，与 web 服务同进程会触发 cgroup OOM
+	// （上游 README 中的 oom 注释即此因），改由 sync-data 命令在独立容器中执行
 	// 定时读取本地的JSON数据更新到全局变量
 	sched.Cron(viper.GetString("app.cronexp.sync_global_vars")).Do(models.InitGlobalVars)
 

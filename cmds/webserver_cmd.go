@@ -4,7 +4,6 @@ package cmds
 
 import (
 	"github.com/axiaoxin-com/investool/cron"
-	"github.com/axiaoxin-com/investool/models"
 	"github.com/axiaoxin-com/investool/routes"
 	"github.com/axiaoxin-com/investool/routes/response"
 	"github.com/axiaoxin-com/investool/webserver"
@@ -53,14 +52,8 @@ func ActionWebserver() func(c *cli.Context) error {
 		configFile := c.String("config")
 		webserver.InitWithConfigFile(configFile)
 
-		// 数据文件缺失时（首次运行）后台强制同步一次并加载全局变量，
-		// 不阻塞 web 服务启动（全量基金同步耗时较长）
-		go func() {
-			cron.EnsureDataFiles()
-			models.InitGlobalVars()
-		}()
-
-		// 启动定时任务
+		// 启动定时任务（仅轻量的本地 JSON 加载，全量同步由
+		// sync-data 命令在独立的一次性容器中执行，避免 web 容器 OOM）
 		cron.RunCronJobs(true)
 		// 创建 gin app
 		middlewares := DefaultGinMiddlewares()

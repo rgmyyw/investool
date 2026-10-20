@@ -23,4 +23,18 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 120s
+      start_period: 60s
+
+  # 全量数据同步一次性任务:SearchFunds 全量峰值内存 >1G,须与 web 隔离
+  # 手动执行: docker compose run --rm sync
+  sync:
+    image: investool:latest
+    profiles: ["sync"]
+    volumes:
+      - ./data:/srv/investool/data
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+    environment:
+      - TZ=Asia/Shanghai
+    entrypoint: ["./investool", "sync-data"]

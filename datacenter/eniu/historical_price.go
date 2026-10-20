@@ -86,26 +86,25 @@ func (p RespHistoricalStockPrice) HistoricalVolatility(ctx context.Context, peri
 }
 
 // QueryHistoricalStockPrice 获取历史股价（前复权），最新数据在最后，有一天的延迟
-// 原数据源亿牛网 eniu.com 接口已停止服务（恒定 500），切换为东方财富历史 K 线接口
+// 原数据源亿牛网 eniu.com 接口已停止服务（恒定 500），切换为腾讯行情历史 K 线接口
+// （东财 push2his 节点对机房出口 IP 存在间歇性掐连接，不可依赖）
 func (e Eniu) QueryHistoricalStockPrice(ctx context.Context, secuCode string) (RespHistoricalStockPrice, error) {
-	s := strings.Split(secuCode, ".")
-	if len(s) != 2 {
+	pathCode := e.GetPathCode(ctx, secuCode)
+	if pathCode == "" {
 		return RespHistoricalStockPrice{}, errors.New("invalid secuCode " + secuCode)
 	}
-	// 东财 secid 市场前缀：沪市 1，深市 0；北交所 0 不在本工具标的范围内
-	market := "1"
-	if s[1] == "SZ" {
-		market = "0"
-	}
+	// 800 个交易日（约 3.3 年）窗口：历史波动率与去年年末价均足够
 	apiurl := fmt.Sprintf(
-		"https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=%s.%s&fields1=f1,f2,f3&fields2=f51,f53&klt=101&fqt=1&beg=0&end=20500101&lmt=1000000",
-		market, s[0],
+		"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=%s,day,,,800,qfq",
+		pathCode,
 	)
 	logging.Debug(ctx, "QueryHistoricalStockPrice "+apiurl+" begin")
 	beginTime := time.Now()
 	resp := struct {
-		Data struct {
-			Klines []string `json:"klines"`
+		Code int `json:"code"`
+		Data map[string]struct {
+			QfqDay [][]string `json:"qfqday"`
+			Day    [][]string `json:"day"`
 		} `json:"data"`
 	}{}
 	err := goutils.HTTPGET(ctx, e.HTTPClient, apiurl, nil, &resp)
@@ -115,19 +114,31 @@ func (e Eniu) QueryHistoricalStockPrice(ctx context.Context, secuCode string) (R
 	if err != nil {
 		return RespHistoricalStockPrice{}, err
 	}
-	// klines 元素形如 "2001-08-27,1740.75"（日期,前复权收盘价）
+	if resp.Code != 0 {
+		return RespHistoricalStockPrice{}, errors.New("kline api code != 0 for " + secuCode)
+	}
+	stockData, ok := resp.Data[pathCode]
+	if !ok {
+		return RespHistoricalStockPrice{}, errors.New("no kline data for " + secuCode)
+	}
+	// 个别标的返回键为 day（无复权数据），优先取 qfqday
+	klines := stockData.QfqDay
+	if len(klines) == 0 {
+		klines = stockData.Day
+	}
+	// klines 元素形如 ["2026-10-13","1287.000","1274.890","1288.480","1268.110","26573.000"]
+	// 字段依次为 日期/开盘/收盘/最高/最低/成交量，取收盘价
 	// 前复权下早期年份可能因累积分红调整为非正数，跳过以免波动率对数收益计算出现 NaN
 	result := RespHistoricalStockPrice{}
-	for _, k := range resp.Data.Klines {
-		parts := strings.Split(k, ",")
-		if len(parts) < 2 {
+	for _, k := range klines {
+		if len(k) < 3 {
 			continue
 		}
-		price, err := strconv.ParseFloat(parts[1], 64)
+		price, err := strconv.ParseFloat(k[2], 64)
 		if err != nil || price <= 0 {
 			continue
 		}
-		result.Date = append(result.Date, parts[0])
+		result.Date = append(result.Date, k[0])
 		result.Price = append(result.Price, price)
 	}
 	if len(result.Date) == 0 {

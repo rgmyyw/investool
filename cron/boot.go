@@ -15,6 +15,14 @@ func fileExists(f string) bool {
 	return err == nil
 }
 
+// SyncAllData 强制全量同步全部数据文件，不受交易日限制
+// 供 sync-data CLI 命令在独立容器中调用（峰值内存 >1G，勿在 web 进程中执行）
+func SyncAllData() {
+	syncIndustryList(true)
+	syncFundManagers(true)
+	syncFund(true)
+}
+
 // EnsureDataFiles 检查数据文件是否齐全，缺失时立即强制同步一次
 // 上游因部署机内存不足改为"json 由外部同步"，本部署内存充足，
 // 由程序自己在启动时和定时任务中维护这些文件；
